@@ -198,8 +198,10 @@ describe("cross-issue influence limit rollout", () => {
     expect(fake.inserted).toEqual([]);
   });
 
-  it("fails closed when the persisted run has no source issue", async () => {
-    const fake = counterDb(0, { contextSnapshot: {} });
+  it("counts every write of a valid run with no source issue, such as a timer heartbeat", async () => {
+    const fake = counterDb(0, {
+      contextSnapshot: { source: "timer", reason: "heartbeat_timer" },
+    });
 
     await expect(observeCrossIssueInfluence(fake.db as never, {
       companyId: "22222222-2222-4222-8222-222222222222",
@@ -207,10 +209,35 @@ describe("cross-issue influence limit rollout", () => {
       agentId: "33333333-3333-4333-8333-333333333333",
       targetIssueId: "55555555-5555-4555-8555-555555555555",
       kind: "update",
-    })).rejects.toMatchObject({
-      status: 403,
-      details: { code: "cross_issue_influence_run_context_required" },
+      now: CROSS_ISSUE_INFLUENCE_ENFORCE_AT,
+    })).resolves.toMatchObject({ allowed: true, mode: "enforce", count: 1 });
+
+    expect(fake.inserted).toEqual([
+      expect.objectContaining({
+        action: "issue.cross_issue_influence_observed",
+        runId: "11111111-1111-4111-8111-111111111111",
+        details: expect.objectContaining({ kind: "update", sourceIssueId: null }),
+      }),
+    ]);
+  });
+
+  it("enforces the cap on a run with no source issue", async () => {
+    const fake = counterDb(CROSS_ISSUE_INFLUENCE_LIMIT, { contextSnapshot: {} });
+
+    await expect(observeCrossIssueInfluence(fake.db as never, {
+      companyId: "22222222-2222-4222-8222-222222222222",
+      runId: "11111111-1111-4111-8111-111111111111",
+      agentId: "33333333-3333-4333-8333-333333333333",
+      targetIssueId: "55555555-5555-4555-8555-555555555555",
+      kind: "comment",
+      now: CROSS_ISSUE_INFLUENCE_ENFORCE_AT,
+    })).resolves.toMatchObject({
+      allowed: false,
+      mode: "enforce",
+      count: CROSS_ISSUE_INFLUENCE_LIMIT + 1,
     });
-    expect(fake.inserted).toEqual([]);
+    expect(fake.inserted).toEqual([
+      expect.objectContaining({ action: "issue.cross_issue_influence_cap_rejected" }),
+    ]);
   });
 });

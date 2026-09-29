@@ -619,7 +619,9 @@ run context fails closed before mutation. A run may attempt at most 20 cross-iss
 updates, or issue-thread interaction resolutions across one shared counter. The
 server records each attempt with its source issue, target issue, run, count, and
 rollout mode, and fails closed with the cap in the error once enforcement is
-active. Writes to the run's own source issue are not counted. Assignee self-comments do not
+active. Writes to the run's own source issue are not counted. A valid run with no
+source issue (for example a timer heartbeat) has no own issue, so every write
+it makes counts against the cap. Assignee self-comments do not
 wake the assignee, and a non-assignee comment cannot mint a mention grant.
 
 Agent-authored issue comments persist the responsible user derived from the

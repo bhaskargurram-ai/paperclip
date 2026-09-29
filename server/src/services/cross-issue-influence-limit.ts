@@ -109,11 +109,16 @@ export async function observeCrossIssueInfluence(
       throw crossIssueInfluenceRunContextError();
     }
 
+    // A run can be valid and bound to this agent and company without a source
+    // issue: timer heartbeats are enqueued with no issueId/taskId. Such a run
+    // has no "own" issue, so every write it makes is cross-issue and is counted
+    // against the shared cap below. It is not refused outright, because the run
+    // context itself is valid and the cap still contains it.
     const sourceIssueId = readRunSourceIssueId(run.contextSnapshot);
-    if (!sourceIssueId) throw crossIssueInfluenceRunContextError();
     if (
-      sourceIssueId === input.targetIssueId ||
-      (input.targetIssueIdentifier && sourceIssueId.toUpperCase() === input.targetIssueIdentifier.toUpperCase())
+      sourceIssueId &&
+      (sourceIssueId === input.targetIssueId ||
+        (input.targetIssueIdentifier && sourceIssueId.toUpperCase() === input.targetIssueIdentifier.toUpperCase()))
     ) {
       return null;
     }
